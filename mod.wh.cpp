@@ -4,7 +4,7 @@
 // @description     A native-style music ticker with multiple media controls.
 // @version         1.0.0
 // @author          Messij
-// @github          https://github.com/Hashah2311
+// @github          https://github.com/Messij/Windhawk---Multiple-Taskbar-Music-Lounge/tree/main
 // @include         explorer.exe
 // @compilerOptions -lole32 -ldwmapi -lgdi32 -luser32 -lwindowsapp -lshcore -lgdiplus -lshell32
 // ==/WindhawkMod==
@@ -26,7 +26,7 @@ A media controller that uses Windows 11 native DWM styling for a seamless look.
 - Pause current media session when launching a new one
 - Middle clic to close media (in the mode, not the app)
 Trailer : https://www.youtube.com/watch?v=ujvPYtALrno
-Github : https://github.com/Messij/Windhawk---Taskbar-Music-Loung-V5
+Github : https://github.com/Messij/Windhawk---Multiple-Taskbar-Music-Lounge/tree/main
 
 ## 🚀 v3 vs v4: Major Architecture Shift
 | Feature | v3 (Legacy) | v4 (Current) |
