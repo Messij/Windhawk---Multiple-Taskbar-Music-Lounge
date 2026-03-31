@@ -1,6 +1,6 @@
 // ==WindhawkMod==
-// @id              multiple-taskbar-music-lounge
-// @name            Multiple Taskbar Music Lounge
+// @id              taskbar-music-lounge-multiple
+// @name            Taskbar Music Lounge Multiple
 // @description     A native-style music ticker with multiple media controls.
 // @version         1.0.0
 // @author          Messij
@@ -15,7 +15,7 @@ This mod is a fork of the original "Taskbar Music Lounge" by Hashah2311
 As the github page https://github.com/Hashah2311 and Hashah2311 profile are unfoundable, I decided to fork the original "Taskbar Music Lounge" and create a new mod.
 Thanks to the original creator of the mod.
 
-# 🌟 Multiple Taskbar Music Lounge 🌟
+# 🌟 Taskbar Music Lounge Multiple 🌟
 📦 Github : https://github.com/Messij/Windhawk---Multiple-Taskbar-Music-Lounge
  
 ## 📼 Trailer 📼
