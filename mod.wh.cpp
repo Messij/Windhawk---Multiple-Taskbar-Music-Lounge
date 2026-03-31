@@ -15,18 +15,22 @@ This mod is a fork of the original "Taskbar Music Lounge" by Hashah2311
 As the github page https://github.com/Hashah2311 and Hashah2311 profile are unfoundable, I decided to fork the original "Taskbar Music Lounge" and create a new mod.
 Thanks to the original creator of the mod.
 
-# Taskbar Music Lounge
-A media controller that uses Windows 11 native DWM styling for a seamless look.
+# 🌟 Multiple Taskbar Music Lounge 🌟
+📦 Github : https://github.com/Messij/Windhawk---Multiple-Taskbar-Music-Lounge
+ 
+## 📼 Trailer 📼
+https://www.youtube.com/watch?v=ujvPYtALrno
 
-## 🌟 Multiple Taskbar Music Lounge
+## V1 Features
 - Title and Artist-Album on two lines
 - Multiple medias view and control
 - Each media session has it's own dedicated art
 - Clic an art will play it and pause the others
 - Pause current media session when launching a new one
 - Middle clic to close media (in the mode, not the app)
-Trailer : https://www.youtube.com/watch?v=ujvPYtALrno
-Github : https://github.com/Messij/Windhawk---Multiple-Taskbar-Music-Lounge/tree/main
+
+# Taskbar Music Lounge Original
+A media controller that uses Windows 11 native DWM styling for a seamless look.
 
 ## 🚀 v3 vs v4: Major Architecture Shift
 | Feature | v3 (Legacy) | v4 (Current) |
@@ -51,7 +55,6 @@ blur.
 for X seconds.
 * **Controls:** Play/Pause, Next, Previous.
 * **Volume:** Scroll over widget to adjust volume.
-
 
 ## ⚠️ Requirements
 * **Disable Widgets:** Taskbar Settings -> Widgets -> Off.
