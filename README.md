@@ -1,14 +1,24 @@
 This mod is a fork of the original "Taskbar Music Lounge" by Hashah2311
-As the github page https://github.com/Hashah2311 and Hashah2311 profile are unfoundable, I decided to fork the original "Taskbar Music Lounge" and create a new mod.
-Thanks to the original creator of the mod.
+As the github page https://github.com/Hashah2311 and Hashah2311 profile are
+unfoundable, I decided to fork the original "Taskbar Music Lounge" and create a
+new mod. Thanks to the original creator of the mod.
 
 # 🌟 Taskbar Music Lounge Multiple 🌟
 📦 Github : https://github.com/Messij/Windhawk---Multiple-Taskbar-Music-Lounge
- 
+
 ## 📼 Trailer 📼
 https://www.youtube.com/watch?v=ujvPYtALrno
 
-## V1 Features
+## 🖱 Controls 🖱
+- Left Clic : play/pause
+- Right Clic : Set default Media
+- Middle Clic : Close Media
+- Mouse Wheele : Change Volume
+
+## v1.0.1
+- Set and Resume default media (define with right clic)
+
+## v1.0.0 Features
 - Title and Artist-Album on two lines
 - Multiple medias view and control
 - Each media session has it's own dedicated art
@@ -49,7 +59,6 @@ for X seconds.
 
 
 ## ⚒ Todo
-- Define a main media that will resume when current media ends (right clic)
 - Control session volune with mouse wheele (like: Taskbar Volume Control Per-App)
 - Add a volume slider
 - Add a progerssion slider with timers
