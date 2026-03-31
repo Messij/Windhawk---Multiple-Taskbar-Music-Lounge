@@ -2,7 +2,7 @@
 // @id              taskbar-music-lounge-multiple
 // @name            Taskbar Music Lounge Multiple
 // @description     A native-style music ticker with multiple media controls.
-// @version         1.0.0
+// @version         1.0.1
 // @author          Messij
 // @github          https://github.com/Messij
 // @include         explorer.exe
@@ -12,16 +12,26 @@
 // ==WindhawkModReadme==
 /*
 This mod is a fork of the original "Taskbar Music Lounge" by Hashah2311
-As the github page https://github.com/Hashah2311 and Hashah2311 profile are unfoundable, I decided to fork the original "Taskbar Music Lounge" and create a new mod.
-Thanks to the original creator of the mod.
+As the github page https://github.com/Hashah2311 and Hashah2311 profile are
+unfoundable, I decided to fork the original "Taskbar Music Lounge" and create a
+new mod. Thanks to the original creator of the mod.
 
 # 🌟 Taskbar Music Lounge Multiple 🌟
 📦 Github : https://github.com/Messij/Windhawk---Multiple-Taskbar-Music-Lounge
- 
+
 ## 📼 Trailer 📼
 https://www.youtube.com/watch?v=ujvPYtALrno
 
-## V1 Features
+## 🖱 Controls 🖱
+- Left Clic : play/pause
+- Right Clic : Set default Media
+- Middle Clic : Close Media
+- Mouse Wheele : Change Volume
+
+## v1.0.1
+- Set and Resume default media (define with right clic)
+
+## v1.0.0 Features
 - Title and Artist-Album on two lines
 - Multiple medias view and control
 - Each media session has it's own dedicated art
@@ -90,8 +100,12 @@ for X seconds.
   $name: Auto Scroll Title
 - MultipleMediaControl: true
   $name: Multiple Media Control
-- PauseOnMewMediaPlayed : true
-  $name: Pause On Mew Media Played
+- PauseOnNewMediaPlayed : true
+  $name: Pause On New Media Played
+- ResumeDefaultMediaIfNothingIsPlayed : false
+  $name: Resume Default Media If Nothing Is Played
+- test : false
+  $name: Test
 */
 // ==/WindhawkModSettings==
 
@@ -197,7 +211,8 @@ struct ModSettings {
     int bgOpacity = 0;
     bool autoScrollTitle = false;
     bool multipleMediaControl = true;
-    bool pauseOnMewMediaPlayed = true;
+    bool pauseOnNewMediaPlayed = true;
+    bool resumeDefaultMediaIfNothingIsPlayed = false;
 } g_Settings;
 
 // --- Global State ---
@@ -221,10 +236,19 @@ struct MediaState {
     Bitmap* albumArt = nullptr;
     mutex lock;
     bool isMouseOverArt = false;
+    bool isDefaultMedia = false;
 };
 int g_MaxNumOfMedia = 10;
 MediaState g_MediaStates[10];
 int g_NumOfMedia = 0;
+// winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSession
+// g_currentMedia{nullptr};
+std::optional<
+    winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSession>
+    g_previousMedia;
+std::optional<
+    winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSession>
+    g_DefaultMediaSession;
 
 // Animation
 int g_ScrollOffset = 0;
@@ -281,8 +305,10 @@ void LoadSettings() {
 
     g_Settings.autoScrollTitle = Wh_GetIntSetting(L"AutoScrollTitle");
     g_Settings.multipleMediaControl = Wh_GetIntSetting(L"MultipleMediaControl");
-    g_Settings.pauseOnMewMediaPlayed =
-        Wh_GetIntSetting(L"PauseOnMewMediaPlayed");
+    g_Settings.pauseOnNewMediaPlayed =
+        Wh_GetIntSetting(L"PauseOnNewMediaPlayed");
+    g_Settings.resumeDefaultMediaIfNothingIsPlayed =
+        Wh_GetIntSetting(L"ResumeDefaultMediaIfNothingIsPlayed");
 }
 
 // --- WinRT / GSMTC ---
@@ -315,7 +341,10 @@ void UpdateMediaInfo() {
             return;
 
         g_NumOfMedia = 0;
-        auto sessionsList = g_SessionManager.GetSessions();
+        winrt::Windows::Foundation::Collections::IVectorView<
+            winrt::Windows::Media::Control::
+                GlobalSystemMediaTransportControlsSession>
+            sessionsList = g_SessionManager.GetSessions();
         for (auto const& session : sessionsList) {
             if (session) {
                 if (auto pb = session.GetPlaybackInfo()) {
@@ -349,7 +378,7 @@ void UpdateMediaInfo() {
                     g_MediaStates[g_NumOfMedia].artist = props.Artist().c_str();
 
                     // Stop all other sessions If a session start to play
-                    if (g_Settings.pauseOnMewMediaPlayed &&
+                    if (g_Settings.pauseOnNewMediaPlayed &&
                         info.PlaybackStatus() ==
                             GlobalSystemMediaTransportControlsSessionPlaybackStatus::
                                 Playing &&
@@ -381,6 +410,35 @@ void UpdateMediaInfo() {
             g_MediaStates[i].isMouseOverArt = false;
             lock_guard<mutex> guard(g_MediaStates[i].lock);
         }
+
+        // Resume Default Media if previous media closed
+        if (g_Settings.multipleMediaControl) {
+            if (g_Settings.resumeDefaultMediaIfNothingIsPlayed) {
+                if (g_SessionManager.GetCurrentSession()) {
+                    if (g_SessionManager.GetCurrentSession()
+                            .GetPlaybackInfo()) {
+                        if (g_SessionManager.GetCurrentSession()
+                                .GetPlaybackInfo()
+                                .PlaybackStatus() !=
+                            GlobalSystemMediaTransportControlsSessionPlaybackStatus::
+                                Playing) {
+                            bool resumeDefaultMedia = true;
+                            for (auto const& session : sessionsList) {
+                                if (session == g_DefaultMediaSession) {
+                                    resumeDefaultMedia = false;
+                                    continue;
+                                }
+                            }
+                            if (resumeDefaultMedia) {
+                                g_DefaultMediaSession->TryPlayAsync();
+                            }
+                        }
+                    }
+                }
+                g_previousMedia = g_SessionManager.GetCurrentSession();
+            }
+        }
+
     } catch (...) {
         for (int i = g_NumOfMedia; i < g_MaxNumOfMedia; i++) {
             g_MediaStates[i].title = L"";
@@ -425,15 +483,32 @@ void SendMediaCommand(int cmd) {
     }
 }
 
+void SetMediaAsDefault() {
+    // Click on art to play/pause corresponding media
+    if (g_Settings.multipleMediaControl) {
+        if (g_Settings.resumeDefaultMediaIfNothingIsPlayed) {
+            auto sessionsList = g_SessionManager.GetSessions();
+            for (int i = 0; i < g_NumOfMedia; i++) {
+                if (auto session = sessionsList.GetAt(i)) {
+                    if (g_MediaStates[i].isMouseOverArt) {
+                        g_MediaStates[i].isDefaultMedia = true;
+                        g_DefaultMediaSession = session;
+                    } else
+                        g_MediaStates[i].isDefaultMedia = false;
+                }
+            }
+        }
+    }
+}
+
 void CloseMedia() {
     if (g_Settings.multipleMediaControl) {
         auto sessionsList = g_SessionManager.GetSessions();
         for (int i = 0; i < g_NumOfMedia; i++) {
             if (auto session = sessionsList.GetAt(i)) {
-                if (g_MediaStates[i].isMouseOverArt)
-                    {
-                        session.TryStopAsync();
-                    }
+                if (g_MediaStates[i].isMouseOverArt) {
+                    session.TryStopAsync();
+                }
             }
         }
     }
@@ -508,6 +583,7 @@ void DrawMediaPanel(HDC hdc, int width, int height) {
 
     MediaState playingState;
 
+    // Browse Media Arts
     for (int i = 0; i < g_NumOfMedia; i++) {
         if (g_MediaStates[i].isPlaying) {
             lock_guard<mutex> guard(g_MediaStates[i].lock);
@@ -531,12 +607,22 @@ void DrawMediaPanel(HDC hdc, int width, int height) {
             AddRoundedRect(path, artX, artY, artSize, artSize, 8);
             if (currentMedia.albumArt) {
                 graphics.SetClip(&path);
+                // Draw Art
                 graphics.DrawImage(currentMedia.albumArt, artX, artY, artSize,
                                    artSize);
-                if (g_Settings.multipleMediaControl &&
-                    g_MediaStates[i].isPlaying) {
-                    Pen pen{Color::LightGray, 5};
-                    graphics.DrawPath(&pen, &path);
+                if (g_Settings.multipleMediaControl) {
+                    // Draw Defaut grey rectangle
+                    if (g_Settings.resumeDefaultMediaIfNothingIsPlayed) {
+                        if (g_MediaStates[i].isDefaultMedia) {
+                            Pen pen{Color::DarkGray, 5};
+                            graphics.DrawPath(&pen, &path);
+                        }
+                    }
+                    // Draw Playing grey rectangle
+                    if (g_MediaStates[i].isPlaying) {
+                        Pen pen{Color::LightGray, 5};
+                        graphics.DrawPath(&pen, &path);
+                    }
                 }
                 graphics.ResetClip();
                 delete currentMedia.albumArt;
@@ -914,9 +1000,8 @@ LRESULT CALLBACK MediaWndProc(HWND hwnd,
             SendMediaCommand(g_HoverState);
             return 0;
 
-            // Adding Mouse Control
         case WM_RBUTTONUP:
-            SendMediaCommand(g_HoverState);
+            SetMediaAsDefault();
             return 0;
 
         case WM_MBUTTONUP:
