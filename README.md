@@ -57,3 +57,4 @@ for X seconds.
 - Assess to current media window (Clic on Text or double clic art)
 - 16/9 art
 - Anchor right/left with widget width detection
+- Keyboard controls (win+f1,F2... play/pause media)
