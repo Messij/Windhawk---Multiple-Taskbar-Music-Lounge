@@ -22,6 +22,8 @@ new mod. Thanks to the original creator of the mod.
 ## 📼 Trailer 📼
 https://www.youtube.com/watch?v=ujvPYtALrno
 
+<img width="445" height="58" alt="image" src="https://github.com/user-attachments/assets/b8f1b6b3-3c6a-4b68-8ee4-bea49bca1f0c" />
+
 ## 🖱 Controls 🖱
 - Left Clic : play/pause
 - Right Clic : Set default Media
