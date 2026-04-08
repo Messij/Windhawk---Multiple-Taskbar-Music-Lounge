@@ -2,7 +2,7 @@
 // @id              taskbar-music-lounge-multiple
 // @name            Taskbar Music Lounge Multiple
 // @description     A native-style music ticker with multiple media controls.
-// @version         1.1.0
+// @version         1.2.0
 // @author          Messij
 // @github          https://github.com/Messij
 // @include         explorer.exe
@@ -29,6 +29,10 @@ https://github.com/user-attachments/assets/b8f1b6b3-3c6a-4b68-8ee4-bea49bca1f0c
 - Right Clic : Set default Media
 - Middle Clic : Close Media
 - Mouse Wheele : Change Volume
+- Double click : Bring selected media session to front
+
+## v1.2.0
+- Double click to bring selected media session to front
 
 ## v1.1.0
 - Set and Resume default media (define with right clic)
@@ -229,6 +233,9 @@ struct MediaState
   bool hasMedia = false;
   Bitmap* albumArt = nullptr;
   mutex lock;
+  // v1.2.0
+  wstring sourceAppId = L"";
+  // -----
   bool isMouseOverArt = false;
   bool isDefaultMedia = false;
 };
@@ -784,6 +791,187 @@ void RegisterTaskbarHook(HWND hwnd)
   PostMessage(hwnd, WM_APP + 10, 0, 0);
 }
 
+// v1.2.0 - Double click to bring selected media session to front
+#pragma region v1.2.0 - Double click to bring selected media session to front
+static const PROPERTYKEY MY_PKEY_AppUserModel_ID = {{0x9F4C2855, 0x9F79, 0x4B39, {0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3}}, 5};
+static struct
+{
+  wstring appId;
+  wstring exeHint;
+  HWND result;
+} g_FindData;
+// v1.2.0
+#pragma endregion
+
+static wstring ExtractExeHint(const wstring& appId)
+{
+  wstring id = appId;
+  for (auto& c : id)
+    c = (WCHAR)towlower(c);
+  auto slash = id.rfind(L'\\');
+  if (slash != wstring::npos)
+    id = id.substr(slash + 1);
+  auto dot = id.rfind(L'.');
+  if (dot != wstring::npos && id.substr(dot) == L".exe")
+    id = id.substr(0, dot);
+  static const WCHAR* knownApps[] = {L"spotify", L"chrome", L"firefox", L"msedge", L"opera", L"brave", L"zen", L"vivaldi", L"arc", L"waterfox", L"librewolf", L"edge"};
+  for (auto app : knownApps)
+    if (id.find(app) != wstring::npos)
+      return wstring(app);
+  auto dotPos = id.rfind(L'.');
+  if (dotPos != wstring::npos)
+    return id.substr(dotPos + 1);
+  return id;
+}
+
+static BOOL CALLBACK FindWindowByAppIdProc(HWND hWnd, LPARAM)
+{
+  bool visible = IsWindowVisible(hWnd) != FALSE;
+  bool iconic = IsIconic(hWnd) != FALSE;
+  if (visible && !iconic)
+  {
+    RECT r;
+    GetWindowRect(hWnd, &r);
+    if ((r.right - r.left) < 50 || (r.bottom - r.top) < 50)
+      return TRUE;
+  }
+
+  IPropertyStore* pStore = nullptr;
+  if (SUCCEEDED(SHGetPropertyStoreForWindow(hWnd, __uuidof(IPropertyStore), (void**)&pStore)))
+  {
+    PROPVARIANT pv;
+    PropVariantInit(&pv);
+    bool matched = false;
+    if (SUCCEEDED(pStore->GetValue(MY_PKEY_AppUserModel_ID, &pv)) && pv.vt == VT_LPWSTR)
+      if (wstring(pv.pwszVal) == g_FindData.appId)
+        matched = true;
+    PropVariantClear(&pv);
+    pStore->Release();
+    if (matched)
+    {
+      Wh_Log(L"[BringToFront] PKEY: appId=%s vis=%d iconic=%d", g_FindData.appId.c_str(), (int)visible, (int)iconic);
+      g_FindData.result = hWnd;
+      return FALSE;
+    }
+  }
+
+  if (g_FindData.exeHint.empty())
+    return TRUE;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(hWnd, &pid);
+  if (!pid)
+    return TRUE;
+  HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (!hProc)
+    return TRUE;
+  WCHAR exePath[MAX_PATH] = {};
+  DWORD sz = MAX_PATH;
+  QueryFullProcessImageNameW(hProc, 0, exePath, &sz);
+  CloseHandle(hProc);
+  WCHAR* exeName = wcsrchr(exePath, L'\\');
+  exeName = exeName ? exeName + 1 : exePath;
+  wstring exe(exeName);
+  for (auto& c : exe)
+    c = (WCHAR)towlower(c);
+  auto dot2 = exe.rfind(L'.');
+  wstring exeBase = (dot2 != wstring::npos) ? exe.substr(0, dot2) : exe;
+  if (exeBase == g_FindData.exeHint || exeBase.find(g_FindData.exeHint) != wstring::npos || g_FindData.exeHint.find(exeBase) != wstring::npos)
+  {
+    WCHAR title[8] = {};
+    GetWindowText(hWnd, title, 8);
+    if (wcslen(title) == 0 && !iconic)
+      return TRUE;
+    Wh_Log(L"[BringToFront] exe: %s hint=%s vis=%d iconic=%d", exeBase.c_str(), g_FindData.exeHint.c_str(), (int)visible, (int)iconic);
+    g_FindData.result = hWnd;
+    return FALSE;
+  }
+  return TRUE;
+}
+
+struct BestWndCtx
+{
+  DWORD pid;
+  HWND best;
+  int score;
+};
+static BOOL CALLBACK FindBestWindowProc(HWND h, LPARAM lp)
+{
+  auto* c = (BestWndCtx*)lp;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(h, &pid);
+  if (pid != c->pid)
+    return TRUE;
+  RECT r = {};
+  GetWindowRect(h, &r);
+  int w = r.right - r.left, ht = r.bottom - r.top;
+  WCHAR title[64] = {};
+  GetWindowText(h, title, 64);
+  bool hasTitle = wcslen(title) > 0, visible = IsWindowVisible(h) != FALSE, iconic = IsIconic(h) != FALSE, goodSize = (w > 100 && ht > 100) || iconic;
+  int score = (hasTitle ? 8 : 0) + (goodSize ? 4 : 0) + (visible ? 2 : 0) + (iconic ? 1 : 0);
+  if (score > c->score)
+  {
+    c->score = score;
+    c->best = h;
+  }
+  return TRUE;
+}
+
+void BringSourceAppToFront()
+{
+  {
+    lock_guard<mutex> guard(g_MediaStates[0].lock);
+    g_FindData.appId = g_MediaStates[0].sourceAppId;
+  }
+  g_FindData.result = NULL;
+  if (g_FindData.appId.empty())
+    return;
+  g_FindData.exeHint = ExtractExeHint(g_FindData.appId);
+  Wh_Log(L"[BringToFront] appId=%s exeHint=%s", g_FindData.appId.c_str(), g_FindData.exeHint.c_str());
+  EnumWindows(FindWindowByAppIdProc, 0);
+  if (!g_FindData.result)
+  {
+    Wh_Log(L"[BringToFront] NOT FOUND: %s", g_FindData.appId.c_str());
+    return;
+  }
+
+  DWORD targetPid = 0;
+  GetWindowThreadProcessId(g_FindData.result, &targetPid);
+  BestWndCtx ctx = {targetPid, g_FindData.result, -1};
+  EnumWindows(FindBestWindowProc, (LPARAM)&ctx);
+  HWND hWnd = ctx.best;
+  bool visible = IsWindowVisible(hWnd) != FALSE, iconic = IsIconic(hWnd) != FALSE;
+  Wh_Log(L"[BringToFront] selected: hwnd=%p vis=%d iconic=%d", hWnd, (int)visible, (int)iconic);
+  AllowSetForegroundWindow(ASFW_ANY);
+
+  if (iconic)
+  {
+    SetWindowPos(g_hMediaWindow, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    ShowWindow(hWnd, SW_RESTORE);
+    SetForegroundWindow(hWnd);
+    SetWindowPos(g_hMediaWindow, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  }
+  else if (visible)
+  {
+    SetWindowPos(g_hMediaWindow, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    BringWindowToTop(hWnd);
+    SetForegroundWindow(hWnd);
+    SetWindowPos(g_hMediaWindow, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  }
+  else
+  {
+    if (g_FindData.appId.find(L"Spotify") != wstring::npos || g_FindData.exeHint == L"spotify")
+    {
+      ShellExecuteW(NULL, L"open", L"spotify:", NULL, NULL, SW_SHOW);
+      return;
+    }
+    SetWindowPos(g_hMediaWindow, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    SendMessage(hWnd, WM_SYSCOMMAND, SC_RESTORE, 0);
+    SetForegroundWindow(hWnd);
+    SetWindowPos(g_hMediaWindow, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  }
+}
+// -----------------
+
 // --- Window Procedure ---
 #define IDT_POLL_MEDIA 1001
 #define IDT_ANIMATION 1002
@@ -1028,8 +1216,16 @@ LRESULT CALLBACK MediaWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       SendMediaCommand(g_HoverState);
       return 0;
 
+      // v1.2.0
+      // case WM_LBUTTONDBLCLK:
+      // BringSourceAppToFront();
+      // -----
+
     case WM_RBUTTONUP:
       SetMediaAsDefault();
+      //  v1.2.0
+      BringSourceAppToFront();
+      // -----
       return 0;
 
     case WM_MBUTTONUP:
