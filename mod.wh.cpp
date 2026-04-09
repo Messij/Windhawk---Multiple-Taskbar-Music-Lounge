@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/b8f1b6b3-3c6a-4b68-8ee4-bea49bca1f0c
 ## v1.2.0
 - Double click to bring selected media session to front
 
-## v1.1.0
+## v1.1.1
 - Set and Resume default media (define with right clic)
 
 ## v1.0.0 Features
@@ -408,27 +408,23 @@ void UpdateMediaInfo()
       lock_guard<mutex> guard(g_MediaStates[i].lock);
     }
 
-    // v1.1.0 - Resume default media session
+    // v1.1.1 - Resume default media session
     if (g_Settings.multipleMediaControl && g_Settings.resumeDefaultMediaIfNothingIsPlayed && g_DefaultMediaSession)
     {
       // Resume defaultMedia if previous media is stop or close
       if (g_previousMedia && g_previousMedia->GetPlaybackInfo())
       {
-        auto previousSessionPlaybackStatus = g_previousMedia->GetPlaybackInfo().PlaybackStatus();
-        if (previousSessionPlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Closed || previousSessionPlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Stopped)
+        if (g_previousMedia->GetPlaybackInfo().PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Closed || g_previousMedia->GetPlaybackInfo().PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Stopped)
         {
           g_DefaultMediaSession->TryPlayAsync();
-          return;
         }
       }
       // Resume defaultMedia if current media is close
       if (g_SessionManager.GetCurrentSession() && g_SessionManager.GetCurrentSession().GetPlaybackInfo())
       {
-        auto currentSessionPlaybackStatus = g_SessionManager.GetCurrentSession().GetPlaybackInfo().PlaybackStatus();
-        if (currentSessionPlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Closed)
+        if (g_SessionManager.GetCurrentSession().GetPlaybackInfo().PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Closed || g_SessionManager.GetCurrentSession().GetPlaybackInfo().PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Stopped)
         {
           g_DefaultMediaSession->TryPlayAsync();
-          return;
         }
       }
       g_previousMedia = g_SessionManager.GetCurrentSession();
