@@ -2,7 +2,7 @@
 // @id              taskbar-music-lounge-multiple
 // @name            Taskbar Music Lounge Multiple
 // @description     A native-style music ticker with multiple media controls.
-// @version         1.2.0
+// @version         1.2.1
 // @author          Messij
 // @github          https://github.com/Messij
 // @include         explorer.exe
@@ -31,7 +31,7 @@ https://github.com/user-attachments/assets/b8f1b6b3-3c6a-4b68-8ee4-bea49bca1f0c
 - Mouse Wheele : Change Volume
 - Double click : Bring selected media session to front
 
-## v1.2.0
+## v1.2.1
 - Double click to bring selected media session to front
 
 ## v1.1.1
@@ -235,7 +235,7 @@ struct MediaState
   mutex lock;
   // v1.2.0
   wstring sourceAppId = L"";
-  // -----
+  // v1.2.0
   bool isMouseOverArt = false;
   bool isDefaultMedia = false;
 };
@@ -357,6 +357,8 @@ void UpdateMediaInfo()
           auto props = session.TryGetMediaPropertiesAsync().get();
           auto info = session.GetPlaybackInfo();
 
+          // auto g_MediaState = g_MediaStates[g_NumOfMedia];
+
           lock_guard<mutex> guard(g_MediaStates[g_NumOfMedia].lock);
 
           wstring newTitle = props.Title().c_str();
@@ -391,6 +393,14 @@ void UpdateMediaInfo()
 
           g_MediaStates[g_NumOfMedia].isPlaying = (info.PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing);
           g_MediaStates[g_NumOfMedia].hasMedia = true;
+
+          // v1.2.1
+          wstring newSourceId = session.SourceAppUserModelId().c_str();
+          if (newSourceId != g_MediaStates[g_NumOfMedia].sourceAppId)
+            Wh_Log(L"[Media] Source: %s", newSourceId.c_str());
+          g_MediaStates[g_NumOfMedia].sourceAppId = newSourceId;
+          // v1.2.1
+
           g_NumOfMedia++;
           if (g_NumOfMedia >= g_MaxNumOfMedia)
             break;
@@ -403,6 +413,7 @@ void UpdateMediaInfo()
       g_MediaStates[i].artist = L"";
       g_MediaStates[i].isPlaying = false;
       g_MediaStates[i].hasMedia = false;
+      g_MediaStates[i].sourceAppId = L"";  // v1.2.1
       g_MediaStates[i].albumArt = nullptr;
       g_MediaStates[i].isMouseOverArt = false;
       lock_guard<mutex> guard(g_MediaStates[i].lock);
@@ -438,6 +449,7 @@ void UpdateMediaInfo()
       g_MediaStates[i].artist = L"";
       g_MediaStates[i].isPlaying = false;
       g_MediaStates[i].hasMedia = false;
+      g_MediaStates[i].sourceAppId = L"";  // v1.2.1
       g_MediaStates[i].albumArt = nullptr;
       g_MediaStates[i].isMouseOverArt = false;
       lock_guard<mutex> guard(g_MediaStates[i].lock);
@@ -796,8 +808,6 @@ static struct
   wstring exeHint;
   HWND result;
 } g_FindData;
-// v1.2.0
-#pragma endregion
 
 static wstring ExtractExeHint(const wstring& appId)
 {
@@ -966,7 +976,8 @@ void BringSourceAppToFront()
     SetWindowPos(g_hMediaWindow, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
   }
 }
-// -----------------
+// v1.2.0
+#pragma endregion
 
 // --- Window Procedure ---
 #define IDT_POLL_MEDIA 1001
@@ -1208,20 +1219,32 @@ LRESULT CALLBACK MediaWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       InvalidateRect(hwnd, NULL, FALSE);
       break;
 
+      // v1.2.1
+    case WM_LBUTTONDOWN:
+      return 0;
+      // v1.2.1
+
     case WM_LBUTTONUP:
       SendMediaCommand(g_HoverState);
       return 0;
 
-      // v1.2.0
-      // case WM_LBUTTONDBLCLK:
-      // BringSourceAppToFront();
-      // -----
+      // v1.2.1
+    case WM_LBUTTONDBLCLK:
+      BringSourceAppToFront();
+      return 0;
+      // v1.2.1
+
+      // v1.2.1
+    case WM_RBUTTONDOWN:
+      return 0;
+      // v1.2.1
 
     case WM_RBUTTONUP:
-      SetMediaAsDefault();
-      //  v1.2.0
+      // SetMediaAsDefault();
       BringSourceAppToFront();
-      // -----
+      return 0;
+
+    case WM_RBUTTONDBLCLK:
       return 0;
 
     case WM_MBUTTONUP:
